@@ -446,7 +446,7 @@ pub fn flush(drive: &Drive) -> Result<()> {
                 .context("Invalid drive letter")?;
             ensure!(letter.is_ascii_alphabetic(), "Invalid drive letter");
             powershell(&format!(
-                "$ErrorActionPreference='Stop'; Write-VolumeCache -DriveLetter '{letter}'; $shell=New-Object -ComObject Shell.Application; $shell.Namespace(17).ParseName('{letter}:').InvokeVerb('Eject')"
+                "$ErrorActionPreference='Stop'; Write-VolumeCache -DriveLetter '{letter}' -ErrorAction SilentlyContinue; $shell=New-Object -ComObject Shell.Application; $item=$shell.Namespace(17).ParseName('{letter}:'); if(!$item){{throw 'USB is missing'}}; $item.InvokeVerb('Eject'); for($i=0;$i -lt 20;$i++){{if(!(Test-Path -LiteralPath '{letter}:\\')){{exit 0}}; Start-Sleep -Milliseconds 500}}; throw 'Export saved, but USB ejection could not be confirmed; leave it connected'"
             ))?;
             Ok(())
         }

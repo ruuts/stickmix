@@ -92,6 +92,15 @@ fn usb(source: &Path, device: &str, name: Option<String>, naming: export::Naming
     if drive.compatible_filesystem() && drive.mount.is_none() {
         drive = drives::mount(&drive)?;
     }
+    if let Some(mount) = drive.mount.as_ref().and_then(|p| p.canonicalize().ok()) {
+        ensure!(
+            !std::env::current_exe()?.canonicalize()?.starts_with(mount),
+            "Run StickMix from your computer, not from the USB you are preparing"
+        );
+    }
+    // Do not keep a USB busy because this terminal was started inside it.
+    // Prepared input paths and the discovered mount path are absolute.
+    std::env::set_current_dir(std::env::temp_dir())?;
     println!("\nSelected USB: {}", drive.description());
     let existing_library = drive
         .mount
