@@ -53,6 +53,29 @@ fn prompt(label: &str) -> Result<String> {
     Ok(value.trim().trim_matches('"').to_owned())
 }
 
+fn music_path(value: &str) -> PathBuf {
+    let literal = PathBuf::from(value);
+    if literal.exists() || cfg!(windows) {
+        return literal;
+    }
+    // macOS/Linux terminal drag-and-drop escapes spaces and punctuation.
+    let value = value.trim_matches('\'');
+    let mut decoded = String::new();
+    let mut chars = value.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(next) = chars.next() {
+                decoded.push(next);
+            } else {
+                decoded.push(c);
+            }
+        } else {
+            decoded.push(c);
+        }
+    }
+    PathBuf::from(decoded)
+}
+
 fn cache_dir() -> Result<PathBuf> {
     if let Some(path) = std::env::var_os("STICKMIX_CACHE_DIR") {
         return Ok(path.into());
@@ -66,6 +89,9 @@ fn usb(source: &Path, device: &str, name: Option<String>, naming: export::Naming
     // Validate and analyze every input before offering to erase anything.
     let prepared = export::prepare(source, name, naming, &cache_dir()?)?;
     let mut drive = drives::find(device)?;
+    if drive.compatible_filesystem() && drive.mount.is_none() {
+        drive = drives::mount(&drive)?;
+    }
     println!("\nSelected USB: {}", drive.description());
     let existing_library = drive
         .mount
@@ -142,7 +168,7 @@ fn wizard() -> Result<()> {
         .get(index.checked_sub(1).context("Invalid USB number")?)
         .context("Invalid USB number")?;
     usb(
-        Path::new(&source),
+        &music_path(&source),
         &drive.id,
         (!name.is_empty()).then_some(name),
         naming,

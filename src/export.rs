@@ -602,7 +602,11 @@ pub fn write_guarded(
                 digest(&partial)? == prepared.hashes[index],
                 "Audio changed during copy or USB write was corrupted"
             );
-            fs::File::open(&partial)?.sync_all()?;
+            fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&partial)?
+                .sync_all()?;
             fs::rename(partial, destination)?;
         }
         let (dat, ext) = &prepared.analyses[index];
@@ -667,7 +671,7 @@ mod tests {
     use super::*;
     use binrw::BinRead;
     use rekordcrate::{
-        anlz::ANLZ,
+        anlz::{ANLZ, Content},
         pdb::{Header, PageType, Row},
     };
     use std::io::Cursor;
@@ -762,6 +766,21 @@ mod tests {
         for bytes in [&prepared.analyses[0].0, &prepared.analyses[0].1] {
             let parsed = ANLZ::read_be(&mut Cursor::new(bytes)).unwrap();
             assert!(parsed.sections.len() >= 5);
+            for section in &parsed.sections {
+                if let Content::BeatGrid(grid) = &section.content {
+                    assert!(!grid.beats.is_empty());
+                    assert!(
+                        (90..=180).contains(&grid.beats[0].time),
+                        "first beat: {}",
+                        grid.beats[0].time
+                    );
+                    assert!(
+                        grid.beats
+                            .windows(2)
+                            .all(|pair| pair[0].time < pair[1].time)
+                    );
+                }
+            }
         }
         let cached = prepare(
             &source,
@@ -773,6 +792,15 @@ mod tests {
         write(&cached, &output).unwrap();
         assert_eq!(fs::metadata(&audio).unwrap().modified().unwrap(), mtime);
         assert_eq!(fs::read_dir(&cache).unwrap().count(), 1);
+        // A corrupted prior USB copy is repaired on restart, with analysis reused.
+        fs::write(&audio, b"incomplete copy").unwrap();
+        write(&cached, &output).unwrap();
+        assert_eq!(
+            fs::read(&audio).unwrap(),
+            include_bytes!("../tests/fixtures/tone.mp3")
+        );
+        assert!(prepared.source_on(&source));
+        assert!(!prepared.source_on(&output));
     }
     #[test]
     fn foreign_library_is_not_overwritten() {

@@ -48,7 +48,10 @@ impl Drive {
         )
     }
     pub fn compatible(&self) -> bool {
-        self.mbr && self.filesystem.eq_ignore_ascii_case("FAT32") && self.mount.is_some()
+        self.compatible_filesystem() && self.mount.is_some()
+    }
+    pub fn compatible_filesystem(&self) -> bool {
+        self.mbr && self.filesystem.eq_ignore_ascii_case("FAT32")
     }
     fn fingerprint(&self) -> String {
         Sha256::digest(
@@ -262,6 +265,29 @@ pub fn find(id: &str) -> Result<Drive> {
         .context("USB is missing, read-only, or is a system disk")
 }
 
+pub fn mount(drive: &Drive) -> Result<Drive> {
+    ensure!(
+        find(&drive.id)?.fingerprint() == drive.fingerprint(),
+        "USB changed before mounting"
+    );
+    match std::env::consts::OS {
+        "linux" => run(
+            "udisksctl",
+            &[
+                "mount",
+                "-b",
+                drive.partitions.first().context("USB has no partition")?,
+            ],
+        )?,
+        "macos" => run("diskutil", &["mountDisk", &drive.id])?,
+        "windows" => bail!(
+            "This USB has no drive letter; StickMix will not erase a compatible USB to mount it"
+        ),
+        other => bail!("Unsupported OS: {other}"),
+    }
+    find(&drive.id)
+}
+
 pub fn format(drive: &Drive) -> Result<Drive> {
     ensure!(
         !drive.serial.is_empty() && (1024 * 1024 * 1024..=2_000_000_000_000).contains(&drive.size),
@@ -320,7 +346,9 @@ pub fn format(drive: &Drive) -> Result<Drive> {
 pub fn format_helper(id: &str, fingerprint: &str) -> Result<()> {
     let drive = find(id)?;
     ensure!(
-        !drive.serial.is_empty() && drive.fingerprint() == fingerprint,
+        !drive.serial.is_empty()
+            && (1024 * 1024 * 1024..=2_000_000_000_000).contains(&drive.size)
+            && drive.fingerprint() == fingerprint,
         "USB identity changed; nothing erased"
     );
     match std::env::consts::OS {
