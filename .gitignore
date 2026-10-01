@@ -1,0 +1,12 @@
+/target/
+/.build/
+/dist/
+__pycache__/
+*.pyc
+/*.log
+.DS_Store
+credentials.json
+queue.json
+/.state/
+/downloads/
+/Music/

@@ -1,0 +1,44 @@
+[package]
+name = "stickmix"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "Prepare local music playlists for Pioneer XDJ USB playback"
+
+[workspace]
+members = ["vendor/sustain/analysis", "vendor/sustain/artwork", "vendor/sustain/domain", "vendor/sustain/dsp", "vendor/sustain/pioneer"]
+default-members = ["."]
+resolver = "3"
+
+[workspace.package]
+version = "0.8.0-beta.4"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+indicatif = "0.18.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11.0"
+lofty = "0.24"
+walkdir = "2"
+fs2 = "0.4.3"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+sustain-analysis = { path = "vendor/sustain/analysis" }
+sustain-domain = { path = "vendor/sustain/domain" }
+sustain-pioneer = { path = "vendor/sustain/pioneer" }
+
+[dev-dependencies]
+tempfile = "3"
+rekordcrate = "0.3.0"
+binrw = "0.14"
+
+[profile.release]
+strip = true
